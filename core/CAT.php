@@ -198,6 +198,7 @@ class CAT {
      */
     public function printCountryList($active_only = 0) {
         $olddomain = $this->set_locale("core");
+        $C = array();
         if ($active_only) {
             $federations = DBConnection::exec(CAT::$DB_TYPE, "SELECT DISTINCT LOWER(institution.country) AS country FROM institution JOIN profile
                           ON institution.inst_id = profile.inst_id WHERE profile.showtime = 1 ORDER BY country");
