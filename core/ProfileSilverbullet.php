@@ -120,8 +120,8 @@ class ProfileSilverbullet extends AbstractProfile {
             $silverbulletAttributes["eap:ca_file"] = $x509->der2pem(($x509->pem2der($cAFile)));
         }
 
-        $tempArrayProfLevel = array_merge($this->addInternalAttributes($internalAttributes), $this->addInternalAttributes($silverbulletAttributes));
-        $tempArrayProfLevel = array_merge($this->addDatabaseAttributes(), $tempArrayProfLevel);
+        $temp = array_merge($this->addInternalAttributes($internalAttributes), $this->addInternalAttributes($silverbulletAttributes));
+        $tempArrayProfLevel = array_merge($this->addDatabaseAttributes(), $temp);
 
 // now, fetch and merge IdP-wide attributes
 
@@ -142,19 +142,28 @@ class ProfileSilverbullet extends AbstractProfile {
      * @param string path the path where the new installer can be found
      */
     public function updateCache($device, $path, $mime, $integerEapType) {
-// params are needed for proper overriding, but not needed at all.
+        // caching is not supported in SB (private key in installers)
+        // the following merely makes the "unused parameter" warnings go away
+        // the FALSE in condition one makes sure it never gets executed
+        if (FALSE || $device == "Macbeth" || $path == "heath" || $mime == "application/witchcraft" || $integerEapType == 0) {
+            throw new Exception("FALSE is TRUE, and TRUE is FALSE! Hover through the browser and filthy code!");
+        }
     }
 
     /**
      * register new supported EAP method for this profile
      *
-     * @param array $type The EAP Type, as defined in class EAP
+     * @param \core\common\EAP $type The EAP Type, as defined in class EAP
      * @param int $preference preference of this EAP Type. If a preference value is re-used, the order of EAP types of the same preference level is undefined.
      *
      */
-    public function addSupportedEapMethod($type, $preference) {
-// params are needed for proper overriding, but not used at all.
-        parent::addSupportedEapMethod(\core\common\EAP::EAPTYPE_SILVERBULLET, 1);
+    public function addSupportedEapMethod(\core\common\EAP $type, $preference) {
+        // the parameters really should only list SB and with prio 1 - otherwise,
+        // something fishy is going on
+        if ($type->getIntegerRep() != \core\common\EAP::INTEGER_SILVERBULLET || $preference != 1) {
+            throw new Exception("Silverbullet::addSupportedEapMethod was called for a non-SP EAP type or unexpected priority!");
+        }
+        parent::addSupportedEapMethod($type, 1);
     }
 
     /**
@@ -162,7 +171,10 @@ class ProfileSilverbullet extends AbstractProfile {
      * @param boolean $shallwe
      */
     public function setAnonymousIDSupport($shallwe) {
-// params are needed for proper overriding, but not used at all.
+        // we don't do anonymous outer IDs in SB
+        if ($shallwe === TRUE) {
+            throw new Exception("Silverbullet: attempt to add anonymous outer ID support to a SB profile!");
+        }
         $this->databaseHandle->exec("UPDATE profile SET use_anon_outer = 0 WHERE profile_id = $this->identifier");
     }
 

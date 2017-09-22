@@ -131,7 +131,7 @@ class EAP {
      * @var array
      */
     private $arrayRep;
-    
+
     /**
      * The integer representation of the EAP type
      * @var int
@@ -144,37 +144,30 @@ class EAP {
      * 
      * @param mixed $eapType the EAP type, either in its integer or array representation
      */
-    public function __construct(mixed $eapType) {
+    public function __construct($eapType) {
         if (is_numeric($eapType) && array_key_exists($eapType, EAP::EAPTYPES_CONVERSION)) {
             $key = array_keys(EAP::EAPTYPES_CONVERSION, EAP::EAPTYPES_CONVERSION[$eapType]);
             $this->intRep = $key[0];
-            $this->arrayRep = EAP::EAPTYPES_CONVERSION[$eapType];
+            $this->arrayRep = EAP::EAPTYPES_CONVERSION[$this->intRep];
             return;
         }
         if (is_array($eapType)) {
             $key = array_search($eapType, EAP::EAPTYPES_CONVERSION);
             if ($key !== FALSE) {
                 $this->intRep = $key;
-                $this->arrayRep = $eapType;
+                $this->arrayRep = EAP::EAPTYPES_CONVERSION[$key];
                 return;
             }
         }
         throw new Exception("Unable to instantiate the EAP class - the EAP type is bogus.");
     }
 
-    const OPMODE_PASSWORD_REQUIRED = 100;
-    const OPMODE_PASSWORD_OPTIONAL = 101;
-    const OPMODE_PASSWORD_NOTPOSSIBLE = 102;
-    const OPMODE_CLIENTCERT_REQUIRED = 103;
-    const OPMODE_CLIENTCERT_OPTIONAL = 104;
-    const OPMODE_CLIENTCERT_NOTPOSSIBLE = 105;
-    
     /**
      * Is this a password-based EAP method?
      * @return int
      * @throws Exception
      */
-    public function isPasswordBased() {
+    public function isPasswordRequired() {
         switch ($this->intRep) {
             case EAP::INTEGER_EAP_pwd:
             case EAP::INTEGER_FAST_GTC:
@@ -182,36 +175,64 @@ class EAP {
             case EAP::INTEGER_TTLS_GTC:
             case EAP::INTEGER_TTLS_MSCHAPv2:
             case EAP::INTEGER_TTLS_PAP:
-                return EAP::OPMODE_PASSWORD_REQUIRED;
+                return TRUE;
             case EAP::INTEGER_TLS:
             case EAP::INTEGER_SILVERBULLET:
-                return EAP::OPMODE_PASSWORD_NOTPOSSIBLE;
+                return FALSE;
             default:
-                throw new Exception("Unable to determine if the EAP type is password-based or not!");
+                throw new Exception("Unable to determine if the EAP type required a password or not!");
         }
     }
-    
+
+    /**
+     * There could be EAP methods which have an optional need for a password.
+     * Not aware of any, so this is a simple function :-)
+     * @return boolean
+     */
+    public function isPasswordOptional() {
+        return FALSE;
+    }
+
     /**
      * Is this a certificate-based EAP method?
      * @return int
      * @throws Exception
      */
-    public function isClientCertBased() {
+    public function isClientCertRequired() {
         switch ($this->intRep) {
             case EAP::INTEGER_EAP_pwd:
-                return EAP::OPMODE_CLIENTCERT_NOTPOSSIBLE;
             case EAP::INTEGER_FAST_GTC:
             case EAP::INTEGER_PEAP_MSCHAPv2:
             case EAP::INTEGER_TTLS_GTC:
             case EAP::INTEGER_TTLS_MSCHAPv2:
             case EAP::INTEGER_TTLS_PAP:
-                return EAP::OPMODE_CLIENTCERT_OPTIONAL;
+                return FALSE;
             case EAP::INTEGER_TLS:
             case EAP::INTEGER_SILVERBULLET:
-                return EAP::OPMODE_CLIENTCERT_REQUIRED;
+                return TRUE;
             default:
-                throw new Exception("Unable to determine if the EAP type is client-certificate-based or not!");
-        }        
+                throw new Exception("Unable to determine if the EAP type requires client-certificates or not!");
+        }
+    }
+
+    /**
+     * Does an EAP type optionally allow to send a client certificate?
+     */
+    public function isClientCertOptional() {
+        switch ($this->intRep) {
+            case EAP::INTEGER_EAP_pwd:
+            case EAP::INTEGER_TLS:
+            case EAP::INTEGER_SILVERBULLET:
+                return FALSE;
+            case EAP::INTEGER_FAST_GTC:
+            case EAP::INTEGER_PEAP_MSCHAPv2:
+            case EAP::INTEGER_TTLS_GTC:
+            case EAP::INTEGER_TTLS_MSCHAPv2:
+            case EAP::INTEGER_TTLS_PAP:
+                return TRUE;
+            default:
+                throw new Exception("Unable to determine if the EAP type has optional client-certificates or not!");
+        }
     }
 
     /**
@@ -234,16 +255,16 @@ class EAP {
             default:
                 throw new Exception("Unable to determine if the EAP type requires a CA trust base for secure functioning or not!");
         }
-        
     }
+
     /**
      * Does the EAP type require the specification of a server name to be secure?
+     * EAP-pwd has one, but it is not really required.
      * @return bool
      * @throws Exception
      */
     public function needsServerName() {
         switch ($this->intRep) {
-            case EAP::INTEGER_EAP_pwd:
             case EAP::INTEGER_FAST_GTC:
             case EAP::INTEGER_PEAP_MSCHAPv2:
             case EAP::INTEGER_TTLS_GTC:
@@ -252,12 +273,13 @@ class EAP {
             case EAP::INTEGER_TLS:
             case EAP::INTEGER_SILVERBULLET:
                 return TRUE;
+            case EAP::INTEGER_EAP_pwd:
+                return FALSE;
             default:
                 throw new Exception("Unable to determine if the EAP type requires a server name trust base for secure functioning or not!");
         }
-        
     }
-    
+
     /**
      * Returns the Array representation of the EAP type.
      * 
@@ -266,7 +288,7 @@ class EAP {
     public function getArrayRep() {
         return $this->arrayRep;
     }
-    
+
     /**
      * Returns the int representation of the EAP type.
      * 
@@ -275,7 +297,7 @@ class EAP {
     public function getIntegerRep() {
         return $this->intRep;
     }
-    
+
     /**
      * This function takes the EAP method in array representation (OUTER/INNER) and returns it in a custom format for the
      * Linux installers (not numbers, but strings as values).
@@ -319,40 +341,30 @@ class EAP {
     /**
      * This function enumerates all known EAP types and returns them as array
      * 
-     * @return array of all EAP types the CAT knows about
+     * @return array of all EAP types the CAT knows about, as objects
      */
     public static function listKnownEAPTypes() {
-        return array_values(EAP::EAPTYPES_CONVERSION);
+        $retval = [];
+
+        foreach (array_values(EAP::EAPTYPES_CONVERSION) as $oneArrayRep) {
+            $retval[] = new EAP($oneArrayRep);
+        }
+        return $retval;
     }
 
-    /**
-     * EAP methods have two representations: an integer enumeration and an array with keys OUTER and INNER
-     * This function converts between the two.
-     * @param int|array $input either the integer ID of an EAP type (returns array representation) or the array representation (returns integer)
-     * @return array|int
-     */
-    public static function eAPMethodArrayIdConversion($input) {
-        if ($input == 0) {
-            throw new Exception("Zero - How can that be?");
-        }
-        if (is_numeric($input) && isset(EAP::EAPTYPES_CONVERSION[$input])) {
-            return (array) EAP::EAPTYPES_CONVERSION[$input];
-        }
-        if (is_array($input)) {
-            $keys = array_keys(EAP::EAPTYPES_CONVERSION, $input);
-            if (count($keys) == 1) {
-                return (int) $keys[0];
-            }
-        }
-        throw new Exception("Unable to map EAP method array to EAP method int or vice versa: $input!");
-    }
-
-    public static function multiConversion($inputArray) {
-        $out = [];
-        foreach ($inputArray as $oneMember) {
-            $out[] = EAP::eAPMethodArrayIdConversion($oneMember);
-        }
-        return $out;
+    public function getPrintableRep() {
+        $nameMapping = [
+            _("PEAP-MSCHAPv2") => \core\common\EAP::EAPTYPE_PEAP_MSCHAP2,
+            _("TLS") => \core\common\EAP::EAPTYPE_TLS,
+            _("TTLS-PAP") => \core\common\EAP::EAPTYPE_TTLS_PAP,
+            _("TTLS-MSCHAPv2") => \core\common\EAP::EAPTYPE_TTLS_MSCHAP2,
+            _("TTLS-GTC") => \core\common\EAP::EAPTYPE_TTLS_GTC,
+            _("FAST-GTC") => \core\common\EAP::EAPTYPE_FAST_GTC,
+            _("EAP-pwd") => \core\common\EAP::EAPTYPE_PWD,
+            \core\ProfileSilverbullet::PRODUCTNAME => \core\common\EAP::EAPTYPE_SILVERBULLET,
+        ];
+        $find = array_keys($nameMapping, $this->arrayRep, TRUE);
+        return $find[0];
     }
 
 }

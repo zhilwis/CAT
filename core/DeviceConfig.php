@@ -225,8 +225,8 @@ abstract class DeviceConfig extends \core\common\Entity {
 
         $this->attributes['internal:consortia'] = $this->getConsortia();
         $olddomain = $this->languageInstance->setTextDomain("core");
-        $support_email_substitute = sprintf(_("your local %s support"), CONFIG_CONFASSISTANT['CONSORTIUM']['display_name']);
-        $support_url_substitute = sprintf(_("your local %s support page"), CONFIG_CONFASSISTANT['CONSORTIUM']['display_name']);
+        $this->support_email_substitute = sprintf(_("your local %s support"), CONFIG_CONFASSISTANT['CONSORTIUM']['display_name']);
+        $this->support_url_substitute = sprintf(_("your local %s support page"), CONFIG_CONFASSISTANT['CONSORTIUM']['display_name']);
         $this->languageInstance->setTextDomain($olddomain);
 
         if ($this->signer && $this->options['sign']) {
@@ -238,16 +238,17 @@ abstract class DeviceConfig extends \core\common\Entity {
     /**
      * Selects the preferred eap method based on profile EAP configuration and device EAP capabilities
      *
-     * @param array eap_array an array of eap methods supported by a given device
+     * @param array eapArrayofObjects an array of eap methods supported by a given device
      */
-    public function calculatePreferredEapType($eap_array) {
+    public function calculatePreferredEapType($eapArrayofObjects) {
         $this->selectedEap = [];
-        foreach ($eap_array as $eap) {
-            if (in_array($eap, $this->supportedEapMethods)) {
-                $this->selectedEap = $eap;
-                $this->loggerInstance->debug(4, "Selected EAP:");
-                $this->loggerInstance->debug(4, $eap);
+        foreach ($eapArrayofObjects as $eap) {
+            if (in_array($eap->getArrayRep(), $this->supportedEapMethods)) {
+                $this->selectedEap = $eap->getArrayRep();
             }
+        }
+        if ($this->selectedEap != []) {
+            $this->selectedEapObject = new common\EAP($this->selectedEap);
         }
     }
 
@@ -693,6 +694,7 @@ abstract class DeviceConfig extends \core\common\Entity {
      * @var array
      */
     public $selectedEap;
+    public $selectedEapObject;
 
     /**
      * the path to the profile signing program

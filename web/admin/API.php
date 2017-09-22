@@ -106,7 +106,7 @@ switch ($sanitised_action) {
         // same thing for profile options
         $profileWideOptions = $_POST;
         foreach ($profileWideOptions['option'] as $optindex => $optname) {
-            if (!preg_match("/^profile:/", $optname) || $optname == "profile:QR-user") {
+            if (!preg_match("/^profile:/", $optname)) {
                 unset($profileWideOptions['option'][$optindex]);
             }
         }
@@ -118,20 +118,22 @@ switch ($sanitised_action) {
             $therealm = "";
             $theanonid = "anonymous";
             $useAnon = FALSE;
-            $valuesFiltered = filter_input(INPUT_POST,'value', FILTER_SANITIZE_STRING, FILTER_REQUIRE_ARRAY);
+            $stringValuesFiltered = filter_input(INPUT_POST,'value', FILTER_SANITIZE_STRING, FILTER_REQUIRE_ARRAY);
+            $intValuesFiltered = filter_input(INPUT_POST,'value', FILTER_SANITIZE_NUMBER_INT, FILTER_REQUIRE_ARRAY);
+            $pref = 0;
             foreach ($_POST['option'] as $optindex => $optname) {
                 switch ($optname) {
                     case "profile-api:anon":
                         // I rather work directly with _POST, but some code 
                         // paths trigger Scrutinizer's security warnings
                         // so relying on the pre-filtered input for those places
-                        if (array_key_exists($optindex . "-0", $valuesFiltered)) {
-                            $theanonid = $validator->string($valuesFiltered[$optindex . "-0"]);
+                        if (array_key_exists($optindex . "-0", $stringValuesFiltered)) {
+                            $theanonid = $validator->string($stringValuesFiltered[$optindex . "-0"]);
                         }
                         break;
                     case "profile-api:realm":
-                        if (array_key_exists($optindex . "-0", $valuesFiltered)) {
-                            $therealm = $validator->realm($valuesFiltered[$optindex . "-0"]);
+                        if (array_key_exists($optindex . "-0", $stringValuesFiltered)) {
+                            $therealm = $validator->realm($stringValuesFiltered[$optindex . "-0"]);
                         }
                         break;
                     case "profile-api:useanon":
@@ -140,34 +142,13 @@ switch ($sanitised_action) {
                         }
                         break;
                     case "profile-api:eaptype":
-                        $pref = 0;
-                        if (isset($_POST['value'][$optindex . "-0"]) &&
-                                is_numeric($_POST['value'][$optindex . "-0"]) &&
-                                $_POST['value'][$optindex . "-0"] >= 1 &&
-                                $_POST['value'][$optindex . "-0"] <= 7) {
-                            switch ($_POST['value'][$optindex . "-0"]) {
-                                case 1:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_TTLS_PAP, $pref);
-                                    break;
-                                case 2:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_PEAP_MSCHAP2, $pref);
-                                    break;
-                                case 3:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_TLS, $pref);
-                                    break;
-                                case 4:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_FAST_GTC, $pref);
-                                    break;
-                                case 5:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_TTLS_GTC, $pref);
-                                    break;
-                                case 6:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_TTLS_MSCHAP2, $pref);
-                                    break;
-                                case 7:
-                                    $newprofile->addSupportedEapMethod(\core\common\EAP::EAPTYPE_PWD, $pref);
-                                    break;
+                        
+                        if (isset($intValuesFiltered[$optindex . "-0"])) {
+                            $filteredType = $intValuesFiltered[$optindex . "-0"];
+                            if ($filteredType <0 || $filteredType >8) {
+                                break;
                             }
+                            $newprofile->addSupportedEapMethod(new \core\common\EAP($filteredType), $pref);
                             $pref = $pref + 1;
                         }
                         break;

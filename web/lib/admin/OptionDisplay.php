@@ -44,6 +44,19 @@ class OptionDisplay {
     private $allLocationCount;
 
     /**
+     * When "fresh" options are displayed (HTML select/otion fields, optionally
+     * with language, and of varying data types) we want to give each option
+     * the same prominence and iterate over all options in the list. This
+     * variable keeps track how many option HTML code we've already sent, so
+     * that we can iterate correctly.
+     * 
+     * Only used inside noPrefillText variant of the optiontext() call
+     * 
+     * @var int
+     */
+    private $optionIterator;
+
+    /**
      * Which attributes are we talking about?
      * @param array $options the options of interest
      * @param string $level the level on which these options were defined by the user
@@ -90,13 +103,12 @@ class OptionDisplay {
         $optioninfo = \core\Options::instance();
 
         if (is_array($prepopulate) && ( count($prepopulate) > 1 || $class == "device-specific" || $class == "eap-specific")) { // editing... fill with values
-            $number = 0;
             foreach ($prepopulate as $option) {
-                if (preg_match("/$class:/", $option['name']) && !preg_match("/(profile:QR-user|user:fedadmin)/", $option['name'])) {
+                if (preg_match("/$class:/", $option['name']) && !preg_match("/(user:fedadmin)/", $option['name'])) {
                     $optiontypearray = $optioninfo->optionType($option['name']);
                     $loggerInstance = new \core\common\Logging();
                     $loggerInstance->debug(5, "About to execute optiontext with PREFILL!\n");
-                    $retval .= $this->optiontext($number, [$option['name']], ($optiontypearray["type"] == "file" ? 'ROWID-' . $option['level'] . '-' . $option['row'] : $option['value']), $option['lang']);
+                    $retval .= $this->optiontext([$option['name']], ($optiontypearray["type"] == "file" ? 'ROWID-' . $option['level'] . '-' . $option['row'] : $option['value']), $option['lang']);
                 }
             }
         } else { // not editing exist, this in new: add empty list
@@ -120,9 +132,9 @@ class OptionDisplay {
             }
 
             // add as many options as there are different option types
-
-            foreach (array_keys($list) as $key) {
-                $retval .= $this->optiontext($key, $list);
+            $numberOfOptions = count($list);
+            for ($this->optionIterator = 0; $this->optionIterator < $numberOfOptions; $this->optionIterator++) {
+                $retval .= $this->optiontext($list);
             }
         }
         return $retval;
@@ -132,11 +144,10 @@ class OptionDisplay {
      * HTML code to display a "fresh" option (including type selector and JavaScript to show/hide relevant input fields)
      * @param int $rowid the HTML field base name of the option to be displayed
      * @param array $list the list of option names to include in the type selector
-     * @param int $defaultselect the datatype which should be displayed by default
      * @return string HTML code
      * @throws Exception
      */
-    private function noPrefillText(int $rowid, array $list, int $defaultselect) {
+    private function noPrefillText(int $rowid, array $list) {
         $retval = "";
         $optioninfo = \core\Options::instance();
         $jsmagic = "onchange='
@@ -144,51 +155,27 @@ class OptionDisplay {
                                    document.getElementById(\"S$rowid-input-langselect\").style.display = \"block\";
                                    } else {
                                    document.getElementById(\"S$rowid-input-langselect\").style.display = \"none\";
-                                   }
-                               if (/#file#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
-                                  document.getElementById(\"S$rowid-input-file\").style.display = \"block\";
-                                  document.getElementById(\"S$rowid-input-text\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-string\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"none\";
+                                   }";
+        $dataTypes = ["file", "text", "string", "boolean", "integer"];
+        foreach ($dataTypes as $oneDataType) {
+            // TODO make this a $jsmagic .= after the update of cat-pilot
+            $jsmagic .= "if (/#$oneDataType#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
+                                  document.getElementById(\"S$rowid-input-file\").style.display = \"" . ($oneDataType == "file" ? "block" : "none") . "\";
+                                  document.getElementById(\"S$rowid-input-text\").style.display = \"" . ($oneDataType == "text" ? "block" : "none") . "\";
+                                  document.getElementById(\"S$rowid-input-string\").style.display = \"" . ($oneDataType == "string" ? "block" : "none") . "\";
+                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"" . ($oneDataType == "boolean" ? "block" : "none") . "\";
+                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"" . ($oneDataType == "integer" ? "block" : "none") . "\";
                              }
-                               if (/#string#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
-                                  document.getElementById(\"S$rowid-input-file\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-text\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-string\").style.display = \"block\";
-                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"none\";
-                               }
-                                  if (/#text#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
-                                  document.getElementById(\"S$rowid-input-file\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-text\").style.display = \"block\";
-                                  document.getElementById(\"S$rowid-input-string\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"none\";    
-                               }
-                                  if (/#boolean#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
-                                  document.getElementById(\"S$rowid-input-file\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-text\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-string\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"block\";
-                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"none\";
-                               }
-                                  if (/#integer#/.test(document.getElementById(\"option-S" . $rowid . "-select\").value)) {
-                                  document.getElementById(\"S$rowid-input-file\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-text\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-string\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-boolean\").style.display = \"none\";
-                                  document.getElementById(\"S$rowid-input-integer\").style.display = \"block\";
-                               }
-    '";
-
+                             ";
+        }
+        $jsmagic .= "'";
         $retval .= "<td><select id='option-S$rowid-select' name='option[S$rowid]' $jsmagic>";
         $iterator = 0;
         $uiElements = new UIElements();
         foreach ($list as $value) {
             $listtype = $optioninfo->optionType($value);
             $retval .= "<option id='option-S$rowid-v-$value' value='$value#" . $listtype["type"] . "#" . $listtype["flag"] . "#' ";
-            if ($iterator == $defaultselect) {
+            if ($iterator == $this->optionIterator) {
                 $retval .= "selected='selected'";
                 $activelisttype = $listtype;
             }
@@ -196,7 +183,7 @@ class OptionDisplay {
             $iterator++;
         }
         if (!isset($activelisttype)) {
-            throw new Exception("We should have found the active list type by now!");
+            throw new \Exception("We should have found the active list type by now!");
         }
         $retval .= "</select></td>";
         $retval .= "<td>
@@ -230,12 +217,10 @@ class OptionDisplay {
      * @param string $optionName the name of the option to display
      * @param string $optionValue the value of the option to display
      * @param mixed $optionLang the language of the option to display
-     * @param int $locationIndex which n of m locations is this, in case we are displaying a coordinate
-     * @param int $allLocationCount how many locations in total exist, in case we are displaying a coordinate
      * @return string HTML code
      * @throws Exception
      */
-    private function prefillText(int $rowid, string $optionName, string $optionValue, $optionLang, int &$locationIndex, int &$allLocationCount) {
+    private function prefillText(int $rowid, string $optionName, string $optionValue, $optionLang) {
         $retval = "";
         $optioninfo = \core\Options::instance();
         $loggerInstance = new \core\common\Logging();
@@ -265,9 +250,8 @@ class OptionDisplay {
         $displayedVariant = "";
         switch ($listtype["type"]) {
             case "coordinates":
-                $allLocationCount++;
-                $locationIndex = $allLocationCount;
-                $link = "<button id='location_b_$allLocationCount' class='location_button'>" . _("Click to see location") . " $allLocationCount</button>";
+                $this->allLocationCount = $this->allLocationCount + 1;
+                $link = "<button id='location_b_" . $this->allLocationCount . "' class='location_button'>" . _("Click to see location") . " $this->allLocationCount</button>";
                 $retval .= "<input readonly style='display:none' type='text' name='value[S$rowid-" . self::TYPECODE_TEXT . "]' id='S$rowid-input-text' value='$optionValue'>$link";
                 break;
             case "file":
@@ -328,20 +312,19 @@ class OptionDisplay {
      * Displays a container for options. Either with prefilled data or empty; if
      * empty then has HTML <input> tags with clever javaScript to allow selection
      * of different option names and types
-     * @param int $defaultselect for new options, which of the data types should be preselected
      * @param array $list options which should be displayed; can be only exactly one if existing option, or multiple if new option type
      * @param string $prefillValue for an existing option, it's value to be displayed
      * @param string $prefillLang for an existing option, the language of the value to be displayed
      * @return string HTML code <tr>
      */
-    public function optiontext(int $defaultselect, array $list, string $prefillValue = NULL, string $prefillLang = NULL) {
-        $locationIndex = 0;
+    public function optiontext(array $list, string $prefillValue = NULL, string $prefillLang = NULL) {
         $rowid = mt_rand();
 
         $retval = "<tr id='option-S$rowid' style='vertical-align:top'>";
 
+        $item = "MULTIPLE";
         if ($prefillValue === NULL) {
-            $retval .= $this->noPrefillText($rowid, $list, $defaultselect);
+            $retval .= $this->noPrefillText($rowid, $list);
         }
 
         if ($prefillValue !== NULL) {
@@ -350,12 +333,13 @@ class OptionDisplay {
             if (count($list) != 1) {
                 throw new Exception("Optiontext prefilled display only can work with exactly one option!");
             }
-            $retval .= $this->prefillText($rowid, array_pop($list), $prefillValue, $prefillLang, $locationIndex, $this->allLocationCount);
+            $item = array_pop($list);
+            $retval .= $this->prefillText($rowid, $item, $prefillValue, $prefillLang);
         }
         $retval .= "
 
        <td>
-          <button type='button' class='delete' onclick='deleteOption(" . $locationIndex . ",\"option-S" . $rowid . "\")'>-</button>
+          <button type='button' class='delete' onclick='deleteOption(" . ( $prefillValue !== NULL && $item == "general:geo_coordinates" ? $this->allLocationCount : 0 ) . ",\"option-S" . $rowid . "\")'>-</button>
        </td>
     </tr>";
         return $retval;
